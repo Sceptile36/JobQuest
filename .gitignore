@@ -1,0 +1,80 @@
+# ==========================================
+# ENVIRONMENT VARIABLES & SECRETS
+# ==========================================
+.env
+.env.*
+!.env.example
+frontend/.env.local
+*.pem
+*.key
+
+# ==========================================
+# PYTHON
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ==========================================
+# NODE.JS / FRONTEND
+# ==========================================
+node_modules/
+.next/
+dist/
+build/
+coverage/
+.npm/
+
+# ==========================================
+# EDITORS & IDEs
+# ==========================================
+.vscode/
+.idea/
+.cursor/
+!.vscode/extensions.json
+
+# ==========================================
+# OPERATING SYSTEM
+# ==========================================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ==========================================
+# DOCKER & LOGS
+# ==========================================
+.docker/
+*.log
+logs/
+
+# ==========================================
+# DATABASE & MIGRATIONS
+# ==========================================
+*.sqlite
+*.sqlite3
+*.db
+
+# ==========================================
+# GENERATED FILES
+# ==========================================
+*.xlsx
+.~lock.*
+*.tmp
+*.bak
+
+# Local MCP configuration (contains API keys)
+mcp.json
+
+# ==========================================
+# PROJECT-SPECIFIC EXCLUSIONS
+# ==========================================

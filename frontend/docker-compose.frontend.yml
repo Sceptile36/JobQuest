@@ -1,0 +1,27 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Add this block to the existing docker-compose.yml in the repo root.
+# The frontend service sits alongside api, postgres, redis, scheduler, and
+# each MCP container.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  frontend:
+    build:
+      context: ./frontend          # path to this folder relative to repo root
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"                  # visit http://localhost:3000
+    depends_on:
+      - api
+    environment:
+      # These are baked into the nginx conf at build time via ARG/ENV if needed.
+      # For local dev, use `npm run dev` with .env.local instead.
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - jobagent-net
+
+# Make sure jobagent-net is declared in the networks section:
+networks:
+  jobagent-net:
+    driver: bridge

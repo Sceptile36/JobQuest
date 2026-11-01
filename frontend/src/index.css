@@ -1,0 +1,125 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base ─────────────────────────────────────────────────────────── */
+html, body {
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: #0c0c0c;
+  color: #fff;
+  height: 100%;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+}
+
+::selection {
+  background: rgba(61, 129, 227, 0.3);
+}
+
+/* ── Scrollbars ───────────────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 3px; height: 3px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: rgba(255,255,255,0.1); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+
+/* ── Liquid-glass card treatment ──────────────────────────────────── */
+@layer components {
+  .liquid-glass {
+    background: rgba(255, 255, 255, 0.018);
+    background-blend-mode: luminosity;
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.10),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .liquid-glass::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.4px;
+    background: linear-gradient(
+      180deg,
+      rgba(255,255,255,0.45) 0%,
+      rgba(255,255,255,0.15) 20%,
+      rgba(255,255,255,0)    40%,
+      rgba(255,255,255,0)    60%,
+      rgba(255,255,255,0.15) 80%,
+      rgba(255,255,255,0.45) 100%
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Tighter variant for small UI chips */
+  .liquid-glass-sm {
+    @apply liquid-glass;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+/* ── Gradient text (shiny headline) ──────────────────────────────── */
+.gradient-text {
+  background-image: linear-gradient(
+    to right,
+    #091020   0%,
+    #0B2551  12.5%,
+    #A4F4FD  32.5%,
+    #00d2ff  50%,
+    #0B2551  67.5%,
+    #091020  87.5%,
+    #091020  100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: shiny 4s linear infinite;
+}
+
+/* ── SVG noise filter ─────────────────────────────────────────────── */
+.noise-svg {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* ── Pipeline bar step animations ─────────────────────────────────── */
+.pipe-step-active-icon {
+  display: inline-block;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+/* ── Score bar fill transition ────────────────────────────────────── */
+.score-bar-fill {
+  transition: width 1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Feedback textarea resize ─────────────────────────────────────── */
+.feedback-textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+/* ── Drop zone hover ──────────────────────────────────────────────── */
+.drop-zone-active {
+  border-color: rgba(61, 129, 227, 0.7) !important;
+  background: rgba(61, 129, 227, 0.08) !important;
+}
