@@ -3,6 +3,7 @@
 .gitignore
 .cursor/mcp.json
 .cursor/
+mcp.json
 
 # ── Python & Environments ───────────────────────────────────────────────────
 venv/
