@@ -4,7 +4,7 @@ import { SectionHeader } from '@/components/ui/SectionHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Skeleton } from '@/components/ui/Skeleton'
 import type { Job } from '@/types'
-import { timeAgo } from '@/lib/utils'
+import { timeAgo, scoreColor } from '@/lib/utils'
 
 interface Props {
   resumeId: string | null
@@ -62,6 +62,7 @@ export function JobsView({ resumeId }: Props) {
                 <th className="px-3.5 py-2.5">Title</th>
                 <th className="px-3.5 py-2.5">Company</th>
                 <th className="px-3.5 py-2.5">Location</th>
+                <th className="px-3.5 py-2.5">Match</th>
                 <th className="px-3.5 py-2.5">Found</th>
                 <th className="px-3.5 py-2.5">Apply</th>
               </tr>
@@ -84,6 +85,15 @@ export function JobsView({ resumeId }: Props) {
                   <td className="px-3.5 py-2.5 text-white/50">
                     {j.location || '—'}
                   </td>
+
+                  <td
+                    className="px-3.5 py-2.5 font-mono font-semibold"
+                    style={{ color: scoreColor(j.match_score ?? 0) }}
+                  >
+                    {j.match_score != null ? `${Math.round(j.match_score)}%` : '—'}
+                  </td>
+
+
 
                   <td className="px-3.5 py-2.5 text-white/30 font-mono">
                     {j.found_at ? timeAgo(j.found_at) : '—'}

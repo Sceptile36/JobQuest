@@ -3,6 +3,7 @@ import { SEED_APPLIED } from '@/lib/constants'
 import { scoreColor } from '@/lib/utils'
 import { StatusPill } from '@/components/ui/StatusPill'
 import type { AppliedCompany, ApplicationStatus } from '@/types'
+import { EmptyState } from '@/components/ui/EmptyState'
 
 // In production, this list comes from GET /applications merged with SEED_APPLIED
 // and sorted by sent_at desc. For now we use the seed list.
@@ -88,6 +89,15 @@ export function AppliedPanel() {
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-3">
+
+        {sent.length === 0 && pending.length === 0 && (
+          <EmptyState
+            icon="→"
+            message="No applications sent yet."
+          />
+        )}
+
+
         <AnimatePresence>
           {sent.length > 0 && (
             <>
@@ -114,6 +124,7 @@ export function AppliedPanel() {
               ))}
             </>
           )}
+        
         </AnimatePresence>
       </div>
     </aside>

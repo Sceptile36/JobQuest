@@ -42,10 +42,16 @@ export function WatchlistView({ resumeId }: Props) {
   }
 
   async function handleRemove(id: string) {
+    setError('')
     try {
       await removeFromWatchlist(id)
       setCompanies((prev) => prev.filter((c) => c.id !== id))
-    } catch { /* silent */ }
+    }
+    catch (err) {
+    setError(err instanceof Error ? err.message : "Failed to remove company");
+    }
+
+
   }
 
   return (

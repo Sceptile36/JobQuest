@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, Form, File, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, UploadFile, Form, File, HTTPException, Response, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -76,6 +76,7 @@ class AgentRequestPayload(BaseModel):
 def read_root():
     return {"message": "Resume Parser Pipeline Running"}
 
+
 @app.post("/users")
 def create_user(payload: UserCreatePayload):
     with get_db_connection() as conn:
@@ -84,18 +85,23 @@ def create_user(payload: UserCreatePayload):
                 """
                 INSERT INTO users (name, email)
                 VALUES (%s, %s)
+                ON CONFLICT (email)
+                DO UPDATE SET name = EXCLUDED.name
                 RETURNING id, name, email, created_at;
                 """,
                 (payload.name, payload.email)
             )
             row = cursor.fetchone()
         conn.commit()
+
     return {
         "id": row[0],
         "name": row[1],
         "email": row[2],
         "created_at": row[3],
     }
+
+
 
 
 @app.post("/resumes/upload")
@@ -356,7 +362,7 @@ def delete_watchlist(entry_id: UUID):
             if not row:
                 raise HTTPException(status_code=404, detail="Entry not found")
         conn.commit()
-    return JSONResponse(content={}, status_code=204)
+    return Response(status_code=204)
 
 
 

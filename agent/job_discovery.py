@@ -78,6 +78,7 @@ async def search_jobs(query: str) -> str:
                     cleaned_jobs.append({
                         "title": job.get("job_title"),
                         "company": job.get("employer_name"),
+                        "description": job.get("job_description", ""),
                         "location": ", ".join(
                             p for p in [
                                 job.get("job_city"),
@@ -98,14 +99,19 @@ async def search_jobs(query: str) -> str:
 
 
 async def fetch_user_preferences_async(resume_uuid: uuid.UUID) -> dict:
-    """Asynchronously queries the resumes table for a specific resume's JSONB preference block."""
     async with AsyncSessionLocal() as session:
         result = await session.execute(
             select(Resume).where(Resume.id == resume_uuid)
         )
         resume = result.scalar_one_or_none()
-        if resume and resume.preferences:
-            return resume.preferences
+
+        if resume:
+            return {
+                "preferences": resume.preferences or {},
+                "skills": resume.skills or {},
+                "experience": resume.experience or []
+            }
+
     return {}
 
 
@@ -120,21 +126,30 @@ def _sanitize_preference_string(value, default_fallback: str) -> str:
         return default_fallback
     return stringified
 
-
-def create_personalized_agent(preferences: dict) -> Agent:
+def create_personalized_agent(preferences: dict,skills: dict,experience: list) -> Agent:
     """Maps custom JSONB preference parameters into structured instructions for the native search tool."""
     role = _sanitize_preference_string(preferences.get("target_roles"), "Data Analyst")
     location = _sanitize_preference_string(preferences.get("locations"), "San Francisco")
+    skills_summary = str(skills)
+    experience_summary = str(experience)
 
     # Hardened system prompt to prevent placeholder hallucinations
     instruction_payload = (
         "You are an automated job acquisition assistant.\n\n"
+        f"CANDIDATE SKILLS:\n{skills_summary}\n\n"
+        f"CANDIDATE EXPERIENCE:\n{experience_summary}\n\n"
         "YOUR CRITICAL OPERATIONAL RULES:\n"
         f"1. You MUST call the `search_jobs` tool immediately using exactly the query: '{role} in {location}'.\n"
         "2. Once the tool executes and returns the live data, read the real job listings inside it.\n"
-        "3. Reformat that REAL data into a clean JSON array using these exact keys: 'title', 'company', 'location', 'jd_url', 'source'.\n"
-        "4. STERN WARNING: Never output placeholder text like 'Company Name', 'Job Title', 'Job Location', or 'Job Description URL'.\n"
-        "5. If the tool returns empty or no jobs are found, return an empty array `[]`. Do NOT invent fake listings or template data under any circumstances."
+        "3. Reformat that REAL data into a clean JSON array using these exact keys: 'title', 'company', 'location', 'jd_url', 'source', 'match_score'.\n"
+        "4. Evaluate each job using its title and full description returned by search_jobs. Compare its actual requirements with the candidate's skills and experience.\n"
+        "5. Assign a match_score from 0 to 100 using this rubric:\n"
+        "   - Technical skills match: up to 40 points.\n"
+        "   - Experience and responsibility relevance: up to 40 points.\n"
+        "   - Role level and domain fit: up to 20 points.\n"
+        "6. Return a numeric score, not a string. Do not automatically assign 100 or invent missing qualifications.\n"
+        "7. STERN WARNING: Never output placeholder text like 'Company Name', 'Job Title', 'Job Location', or 'Job Description URL'.\n"
+        "8. If the tool returns empty or no jobs are found, return an empty array `[]`. Do NOT invent fake listings or template data under any circumstances."
     )
 
     return Agent(
@@ -152,8 +167,17 @@ async def run_personalized_discovery(user_id_str: str, resume_id_str: str):
     
     print(f"\n--- Starting Discovery Job Pipeline for Resume UUID: {resume_uuid} ---")
 
-    preferences = await fetch_user_preferences_async(resume_uuid)
-    job_search_agent = create_personalized_agent(preferences)
+    profile = await fetch_user_preferences_async(resume_uuid)
+
+    preferences = profile.get("preferences", {})
+    skills = profile.get("skills", {})
+    experience = profile.get("experience", [])
+
+    job_search_agent = create_personalized_agent(
+        preferences,
+        skills,
+        experience
+    )
     app_name = job_search_agent.name or "job_search_agent"
     
     runner = InMemoryRunner(agent=job_search_agent, app_name=app_name)
@@ -211,6 +235,16 @@ async def run_personalized_discovery(user_id_str: str, resume_id_str: str):
             for job_data in found_jobs:
                 if not isinstance(job_data, dict):
                     continue
+                raw_score = job_data.get("match_score", 50.0)
+
+                try:
+                    score = float(raw_score)
+                except (ValueError, TypeError):
+                    score = 50.0
+
+                # Keep score within the expected 0–100 range
+                score = max(0.0, min(score, 100.0))
+
                 new_job = Job(
                     resume_id=resume_uuid,
                     title=job_data.get("title"),
@@ -218,7 +252,7 @@ async def run_personalized_discovery(user_id_str: str, resume_id_str: str):
                     location=job_data.get("location"),
                     jd_url=job_data.get("jd_url"),
                     source=job_data.get("source", "jsearch"),
-                    match_score=1.0
+                    match_score=score
                 )
                 session.add(new_job)
             await session.commit()
