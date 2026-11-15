@@ -375,7 +375,7 @@ def get_jobs(resume_id: UUID):
                 SELECT id, resume_id, title, company, location,jd_url, source, match_score, found_at
                 FROM jobs
                 WHERE resume_id = %s
-                ORDER BY found_at DESC;
+                ORDER BY match_score DESC, found_at DESC;
                 """,
                 (resume_id,)
             )

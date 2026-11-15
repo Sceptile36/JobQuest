@@ -74,11 +74,20 @@ async def search_jobs(query: str) -> str:
                 print(f"--> Success! Extracted {len(results)} live jobs from payload.")
                 
                 cleaned_jobs = []
-                for job in results[:5]:  
+
+                for job in results[:10]:
+                    raw_desc = job.get("job_description") or ""
+
+                    trimmed_desc = (
+                        raw_desc[:700] + "..."
+                        if len(raw_desc) > 700
+                        else raw_desc
+                    )
+
                     cleaned_jobs.append({
                         "title": job.get("job_title"),
                         "company": job.get("employer_name"),
-                        "description": job.get("job_description", ""),
+                        "description": trimmed_desc,
                         "location": ", ".join(
                             p for p in [
                                 job.get("job_city"),
@@ -227,6 +236,13 @@ async def run_personalized_discovery(user_id_str: str, resume_id_str: str):
             found_jobs = parsed_payload
 
         print(f"Agent successfully extracted {len(found_jobs)} matching job listings!")
+
+        found_jobs.sort(
+            key=lambda job: float(job.get("match_score", 0)),
+            reverse=True
+        )
+
+        found_jobs = found_jobs[:5]
         
         if not isinstance(found_jobs, list):
             raise TypeError("Extracted payload structure could not be normalized into an iterable array.")
