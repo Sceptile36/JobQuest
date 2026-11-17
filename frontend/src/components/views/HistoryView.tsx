@@ -51,7 +51,7 @@ export function HistoryView({ resumeId }: Props) {
   }, [resumeId])
 
   const total   = apps.length
-  const sent    = apps.filter((a) => ['sent', 'viewed', 'replied'].includes(a.status)).length
+  const sent    = apps.filter((a) => ['sent', 'approved', 'viewed', 'replied'].includes(a.status)).length
   const pending = apps.filter((a) => a.status === 'pending').length
   const replied = apps.filter((a) => a.status === 'replied').length
 
@@ -61,13 +61,13 @@ export function HistoryView({ resumeId }: Props) {
         eyebrow="HISTORY"
         tag="ALL TIME"
         title="Outreach History"
-        subtitle="Every email the agent has sent on your behalf."
+        subtitle="Every outreach email approved on your behalf."
       />
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-2.5 mb-6">
         <StatCard value={total}   label="Total"   color="#3D81E3" delay={0} />
-        <StatCard value={sent}    label="Sent"    color="#10b981" delay={0.05} />
+        <StatCard value={sent}    label="Approved" color="#10b981" delay={0.05} />
         <StatCard value={replied} label="Replied" color="#A4F4FD" delay={0.1} />
         <StatCard value={pending} label="Pending" color="#f59e0b" delay={0.15} />
       </div>
@@ -109,13 +109,13 @@ export function HistoryView({ resumeId }: Props) {
 
                 <div className="text-right flex-shrink-0">
                   <div className="text-[13px] font-bold font-mono" style={{ color: sc }}>
-                    {Math.round(a.match_score * 100)}%
+                    {Math.round(a.match_score)}%
                   </div>
                   <div className="text-[10px] text-white/25">match</div>
                 </div>
 
                 <div className="text-[10px] text-white/25 flex-shrink-0">
-                  {a.sent_at ? timeAgo(a.sent_at) : '—'}
+                  {a.sent_at ? timeAgo(a.sent_at) : (a.created_at ? timeAgo(a.created_at) : '—')}
                 </div>
               </motion.div>
             )

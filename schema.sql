@@ -75,7 +75,8 @@ CREATE TABLE public.jobs (
     jd_url text,
     source text,
     match_score double precision,
-    found_at timestamp with time zone DEFAULT now()
+    found_at timestamp with time zone DEFAULT now(),
+    description TEXT
 );
 
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getJobs } from '@/lib/api'
+import { getJobs, createJobDraft } from '@/lib/api'
 import { SectionHeader } from '@/components/ui/SectionHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -14,6 +14,8 @@ export function JobsView({ resumeId }: Props) {
   const [jobs, setJobs] = useState<Job[]>([])
   const [fetching, setFetching] = useState(true)
   const [error, setError] = useState('')
+  const [draftingId, setDraftingId] = useState<string | null>(null)
+  const [draftSuccess, setDraftSuccess] = useState('')
 
   useEffect(() => {
     if (!resumeId) {
@@ -32,6 +34,19 @@ export function JobsView({ resumeId }: Props) {
       .finally(() => setFetching(false))
   }, [resumeId])
 
+  async function handleDraft(jobId: string) {
+    setDraftingId(jobId)
+    setDraftSuccess('')
+    try {
+      await createJobDraft(jobId)
+      setDraftSuccess('Outreach email drafted! Open the Drafts tab to review.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate draft')
+    } finally {
+      setDraftingId(null)
+    }
+  }
+
   return (
     <div className="max-w-3xl mx-auto py-7 px-4">
       <SectionHeader
@@ -44,6 +59,12 @@ export function JobsView({ resumeId }: Props) {
       {error && (
         <p className="text-[12px] text-rose-400 font-mono mb-3">
           ✕ {error}
+        </p>
+      )}
+
+      {draftSuccess && (
+        <p className="text-[12px] text-emerald-400 font-mono mb-3">
+          ✓ {draftSuccess}
         </p>
       )}
 
@@ -100,16 +121,25 @@ export function JobsView({ resumeId }: Props) {
                   </td>
 
                   <td className="px-3.5 py-2.5">
-                    {j.jd_url ? (
-                      <a
-                        href={j.jd_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[#3D81E3] hover:underline"
+                    <div className="flex items-center gap-2">
+                      {j.jd_url ? (
+                        <a
+                          href={j.jd_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[#3D81E3] hover:underline"
+                        >
+                          Open →
+                        </a>
+                      ) : '—'}
+                      <button
+                        onClick={() => handleDraft(j.id)}
+                        disabled={draftingId === j.id}
+                        className="px-2 py-0.5 rounded text-[11px] font-medium bg-[#3D81E3]/20 text-[#3D81E3] border border-[#3D81E3]/30 hover:bg-[#3D81E3]/30 cursor-pointer disabled:opacity-50"
                       >
-                        Open →
-                      </a>
-                    ) : '—'}
+                        {draftingId === j.id ? 'Drafting...' : 'Draft ✦'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

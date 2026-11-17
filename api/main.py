@@ -17,6 +17,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 2. Import your job search agent runner
 from agent.job_discovery import run_personalized_discovery
+from agent.email_drafter import generate_email_draft
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -71,6 +72,9 @@ class AgentCallbackPayload(BaseModel):
 
 class AgentRequestPayload(BaseModel):
     text: str
+
+class RejectDraftPayload(BaseModel):
+    feedback: str
 
 @app.get("/")
 def read_root():
@@ -398,6 +402,318 @@ def get_jobs(resume_id: UUID):
 
     return {"jobs": jobs}
 
+
+
+# 1. GENERATE DRAFT FOR A DISCOVERED JOB
+
+@app.post("/jobs/{job_id}/draft")
+def create_job_draft(job_id: UUID):
+
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    j.id, j.title, j.company, j.description,
+                    j.resume_id, u.name, r.skills, r.experience
+                FROM jobs j
+                JOIN resumes r ON j.resume_id = r.id
+                JOIN users u ON r.user_id = u.id
+                WHERE j.id = %s;
+                """,
+                (job_id,)
+            )
+
+            row = cursor.fetchone()
+
+            if not row:
+                raise HTTPException(status_code=404, detail="Job not found.")
+
+            _, title, company, description, resume_id, user_name, skills, experience = row
+
+    # Use the actual job description
+    real_jd = (
+        description
+        if description and description.strip()
+        else f"{title} at {company}"
+    )
+
+    # Generate the email using Gemini
+    draft_data = generate_email_draft(
+        candidate_name=user_name or "Candidate",
+        skills=skills or {},
+        experience=experience or [],
+        job_title=title or "Software Engineer",
+        company=company or "Company",
+        job_description=real_jd
+    )
+
+    # Save the generated email in PostgreSQL
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO email_drafts
+                (job_id, poc_name, poc_email, poc_source, subject, body, status, version)
+                VALUES (%s, %s, %s, %s, %s, %s, 'pending', 1)
+                RETURNING id, created_at;
+                """,
+                (
+                    job_id,
+                    "Hiring Team",
+                    None,
+                    "unverified",
+                    draft_data.get("subject", f"Application for {title}"),
+                    draft_data.get("body", "")
+                )
+            )
+
+            draft_row = cursor.fetchone()
+
+        conn.commit()
+
+    return {
+        "message": "Draft created successfully",
+        "draft_id": str(draft_row[0])
+    }
+
+
+
+
+# 2. GET ALL DRAFTS FOR A RESUME
+
+@app.get("/drafts")
+def get_drafts(resume_id: UUID):
+
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    d.id, j.resume_id, d.job_id, d.subject, d.body,
+                    d.poc_name, d.poc_email, d.status, d.version,
+                    d.created_at, j.company, j.title, j.match_score
+                FROM email_drafts d
+                JOIN jobs j ON d.job_id = j.id
+                WHERE j.resume_id = %s
+                ORDER BY d.created_at DESC;
+                """,
+                (resume_id,)
+            )
+
+            rows = cursor.fetchall()
+
+    drafts = [
+        {
+            "id": str(r[0]),
+            "resume_id": str(r[1]),
+            "job_posting_id": str(r[2]),
+            "subject": r[3],
+            "body": r[4],
+            "poc_name": r[5] or "Hiring Team",
+            "poc_email": r[6],
+            "poc_confidence": "low",
+            "status": r[7],
+            "version": r[8],
+            "created_at": r[9].isoformat() if r[9] else None,
+            "company": r[10] or "Unknown",
+            "job_title": r[11] or "Role",
+            "match_score": round(r[12]) if r[12] is not None else 0,
+        }
+        for r in rows
+    ]
+
+    return {"drafts": drafts}
+
+
+
+
+# 3. APPROVE DRAFT (HUMAN-IN-THE-LOOP)
+
+@app.post("/drafts/{draft_id}/approve")
+def approve_draft(draft_id: UUID):
+
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE email_drafts
+                SET status = 'approved'
+                WHERE id = %s
+                RETURNING id, job_id;
+                """,
+                (draft_id,)
+            )
+
+            row = cursor.fetchone()
+
+            if not row:
+                raise HTTPException(status_code=404, detail="Draft not found")
+
+            job_id = row[1]
+
+            # Record approval as a dry-run application
+            cursor.execute(
+                """
+                INSERT INTO applications (draft_id, sent_at, status)
+                VALUES (%s, NULL, 'approved')
+                RETURNING id;
+                """,
+                (draft_id,)
+            )
+
+        conn.commit()
+
+    print(
+        f"[DRY-RUN OUTREACH] Draft {draft_id} approved "
+        f"for Job {job_id}. No email was actually sent."
+    )
+
+    return {
+        "message": "Draft approved and recorded",
+        "id": str(draft_id),
+        "status": "approved"
+    }
+
+
+
+
+# 4. REJECT DRAFT WITH FEEDBACK (REWRITE LOOP)
+
+@app.post("/drafts/{draft_id}/reject")
+def reject_draft(draft_id: UUID, payload: RejectDraftPayload):
+
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    d.id, d.body, d.version,
+                    j.title, j.company, j.description,
+                    u.name, r.skills, r.experience
+                FROM email_drafts d
+                JOIN jobs j ON d.job_id = j.id
+                JOIN resumes r ON j.resume_id = r.id
+                JOIN users u ON r.user_id = u.id
+                WHERE d.id = %s;
+                """,
+                (draft_id,)
+            )
+
+            row = cursor.fetchone()
+
+            if not row:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Draft not found"
+                )
+
+            _, old_body, version, title, company, description, user_name, skills, experience = row
+
+    real_jd = (
+        description
+        if description and description.strip()
+        else f"{title} at {company}"
+    )
+
+    # Ask Gemini to rewrite using the user's feedback
+    new_draft = generate_email_draft(
+        candidate_name=user_name or "Candidate",
+        skills=skills or {},
+        experience=experience or [],
+        job_title=title or "Software Engineer",
+        company=company or "Company",
+        job_description=real_jd,
+        feedback=payload.feedback,
+        previous_body=old_body
+    )
+
+    # Update the existing draft
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE email_drafts
+                SET
+                    subject = %s,
+                    body = %s,
+                    version = version + 1,
+                    status = 'pending',
+                    feedback = %s
+                WHERE id = %s
+                RETURNING id, version;
+                """,
+                (
+                    new_draft.get("subject"),
+                    new_draft.get("body"),
+                    payload.feedback,
+                    draft_id
+                )
+            )
+
+            updated_row = cursor.fetchone()
+
+        conn.commit()
+
+    return {
+        "message": "Draft rewritten successfully",
+        "id": str(draft_id),
+        "version": updated_row[1],
+        "status": "pending"
+    }
+
+
+
+# 5. GET APPLICATION HISTORY
+
+@app.get("/applications")
+def get_applications(resume_id: UUID):
+
+    with get_db_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    a.id,
+                    j.resume_id,
+                    a.draft_id,
+                    j.company,
+                    j.title,
+                    d.poc_email,
+                    d.poc_name,
+                    j.match_score,
+                    a.status,
+                    a.sent_at,
+                    d.created_at
+                FROM applications a
+                JOIN email_drafts d ON a.draft_id = d.id
+                JOIN jobs j ON d.job_id = j.id
+                WHERE j.resume_id = %s
+                ORDER BY a.sent_at DESC NULLS LAST, d.created_at DESC;
+                """,
+                (resume_id,)
+            )
+
+            rows = cursor.fetchall()
+
+    applications = [
+        {
+            "id": str(r[0]),
+            "resume_id": str(r[1]),
+            "draft_id": str(r[2]),
+            "company": r[3] or "Unknown",
+            "job_title": r[4] or "Role",
+            "poc_email": r[5],
+            "poc_name": r[6] or "Hiring Team",
+            "match_score": round(r[7]) if r[7] is not None else 0,
+            "status": r[8],
+            "sent_at": r[9].isoformat() if r[9] else None,
+            "created_at": r[10].isoformat() if r[10] else None,
+        }
+        for r in rows
+    ]
+
+    return {"applications": applications}
 
 
 

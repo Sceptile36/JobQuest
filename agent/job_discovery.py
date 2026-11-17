@@ -75,7 +75,7 @@ async def search_jobs(query: str) -> str:
                 
                 cleaned_jobs = []
 
-                for job in results[:10]:
+                for job in results[:5]:
                     raw_desc = job.get("job_description") or ""
 
                     trimmed_desc = (
@@ -103,7 +103,7 @@ async def search_jobs(query: str) -> str:
                 print(f"--> JSearch API Error Body: {response.text}")
                 return f"Error from JSearch API: Status {response.status_code}"
     except Exception as e:
-        print(f"--> JSearch Parsing Exception: {str(e)}")
+        print(f"--> JSearch Exception: {type(e).__name__}: {repr(e)}")
         return f"Failed to parse jobs: {str(e)}"
 
 
@@ -150,7 +150,7 @@ def create_personalized_agent(preferences: dict,skills: dict,experience: list) -
         "YOUR CRITICAL OPERATIONAL RULES:\n"
         f"1. You MUST call the `search_jobs` tool immediately using exactly the query: '{role} in {location}'.\n"
         "2. Once the tool executes and returns the live data, read the real job listings inside it.\n"
-        "3. Reformat that REAL data into a clean JSON array using these exact keys: 'title', 'company', 'location', 'jd_url', 'source', 'match_score'.\n"
+        "3. Reformat the top matching jobs (up to 5) into a clean JSON array using these exact keys: 'title', 'company', 'location', 'jd_url', 'source', 'match_score', 'description'. Preserve the actual job description returned by search_jobs in the 'description' field.\n"
         "4. Evaluate each job using its title and full description returned by search_jobs. Compare its actual requirements with the candidate's skills and experience.\n"
         "5. Assign a match_score from 0 to 100 using this rubric:\n"
         "   - Technical skills match: up to 40 points.\n"
@@ -268,7 +268,8 @@ async def run_personalized_discovery(user_id_str: str, resume_id_str: str):
                     location=job_data.get("location"),
                     jd_url=job_data.get("jd_url"),
                     source=job_data.get("source", "jsearch"),
-                    match_score=score
+                    match_score=score,
+                    description=job_data.get("description", "")
                 )
                 session.add(new_job)
             await session.commit()

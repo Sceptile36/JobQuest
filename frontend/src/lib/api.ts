@@ -73,6 +73,9 @@ export const removeFromWatchlist = (id: string) =>
 export const getJobs = (resumeId: string) =>
   request<{ jobs: Job[] }>(`/jobs?resume_id=${resumeId}`)
 
+export const createJobDraft = (jobId: string) =>
+  request<{ message: string; draft_id: string }>(`/jobs/${jobId}/draft`, { method: 'POST' })
+
 // ── Drafts ─────────────────────────────────────────────────────────
 export const getDrafts = (resumeId: string, status?: string) => {
   const qs = status ? `&status=${status}` : ''

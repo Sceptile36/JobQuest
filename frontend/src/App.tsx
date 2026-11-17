@@ -24,7 +24,7 @@ export default function App() {
     ctx, setCtx,
     view, navigate,
     pipeStep, setPipeStep,
-    drafts, addDraft, updateDraft, removeDraft,
+    drafts, setDrafts, addDraft, removeDraft,
     wsStatus, setWsStatus,
     pendingCount,
   } = useAppState()
@@ -125,7 +125,7 @@ export default function App() {
               <DraftsView
                 resumeId={ctx.resumeId}
                 drafts={drafts}
-                onDraftUpdate={updateDraft}
+                onDraftsLoaded={setDrafts}
                 onDraftRemove={removeDraft}
                 onPipeStep={(s) => setPipeStep(s as PipelineStepId)}
               />
@@ -139,7 +139,7 @@ export default function App() {
           </main>
 
           {/* Right: applied companies panel */}
-          <AppliedPanel />
+          <AppliedPanel resumeId={ctx.resumeId} drafts={drafts} pipeStep={pipeStep} />
 
         </div>
       </div>

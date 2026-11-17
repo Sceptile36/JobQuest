@@ -79,7 +79,7 @@ export interface Draft {
 }
 
 // ── Application (sent outreach) ────────────────────────────────────
-export type ApplicationStatus = 'sent' | 'viewed' | 'replied' | 'pending'
+export type ApplicationStatus = 'sent' | 'viewed' | 'replied' | 'pending' | 'approved'
 
 export interface Application {
   id: string

@@ -44,6 +44,7 @@ class Job(Base):
     source      = Column(String(50))   # 'jsearch' | 'linkedin' | etc.
     match_score = Column(Float)        # optional relevance score set by agent
     found_at    = Column(DateTime(timezone=True), server_default=func.now())
+    description = Column(Text)
 
 
 class EmailDraft(Base):

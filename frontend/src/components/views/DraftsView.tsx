@@ -12,12 +12,12 @@ import type { Draft } from '@/types'
 interface Props {
   resumeId: string | null
   drafts: Draft[]
-  onDraftUpdate: (id: string, patch: Partial<Draft>) => void
+  onDraftsLoaded?: (drafts: Draft[]) => void
   onDraftRemove: (id: string) => void
   onPipeStep: (step: 'draft' | 'approve' | 'sent') => void
 }
 
-export function DraftsView({ resumeId, drafts, onDraftUpdate, onDraftRemove, onPipeStep }: Props) {
+export function DraftsView({ resumeId, drafts, onDraftsLoaded, onDraftRemove, onPipeStep }: Props) {
   const [selected, setSelected]  = useState<Draft | null>(null)
   const [feedback, setFeedback]  = useState('')
   const [loading, setLoading]    = useState(false)
@@ -34,10 +34,14 @@ export function DraftsView({ resumeId, drafts, onDraftUpdate, onDraftRemove, onP
   useEffect(() => {
     if (!resumeId) { setFetching(false); return }
     getDrafts(resumeId)
-      .then(() => { /* drafts already in parent state via WS */ })
+      .then((res) => {
+        if (res.drafts && onDraftsLoaded) {
+          onDraftsLoaded(res.drafts)
+        }
+      })
       .catch(() => {})
       .finally(() => setFetching(false))
-  }, [resumeId])
+  }, [resumeId, onDraftsLoaded])
 
   async function handleApprove(id: string) {
     setLoading(true)
@@ -53,8 +57,13 @@ export function DraftsView({ resumeId, drafts, onDraftUpdate, onDraftRemove, onP
     if (!feedback.trim()) return
     setLoading(true)
     try {
-      const updated = await rejectDraft(id, feedback)
-      onDraftUpdate(id, { status: 'rewriting', version: updated.version })
+      await rejectDraft(id, feedback)
+      if (resumeId) {
+        const refreshed = await getDrafts(resumeId)
+        if (refreshed.drafts && onDraftsLoaded) {
+          onDraftsLoaded(refreshed.drafts)
+        }
+      }
       setSelected(null)
       setFeedback('')
       onPipeStep('draft')

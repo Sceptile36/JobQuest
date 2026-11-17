@@ -1,12 +1,16 @@
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { SEED_APPLIED } from '@/lib/constants'
-import { scoreColor } from '@/lib/utils'
+import { scoreColor, timeAgo } from '@/lib/utils'
 import { StatusPill } from '@/components/ui/StatusPill'
-import type { AppliedCompany, ApplicationStatus } from '@/types'
+import { getApplications } from '@/lib/api'
+import type { AppliedCompany, ApplicationStatus, Draft, PipelineStepId } from '@/types'
 import { EmptyState } from '@/components/ui/EmptyState'
 
-// In production, this list comes from GET /applications merged with SEED_APPLIED
-// and sorted by sent_at desc. For now we use the seed list.
+interface Props {
+  resumeId: string | null
+  drafts?: Draft[]
+  pipeStep?: PipelineStepId
+}
 
 function CompanyCard({ c, delay }: { c: AppliedCompany; delay: number }) {
   const bar = scoreColor(c.score)
@@ -33,7 +37,7 @@ function CompanyCard({ c, delay }: { c: AppliedCompany; delay: number }) {
           <div className="text-[13px] font-semibold leading-tight">{c.name}</div>
           <div className="text-[10px] text-white/40 font-mono mt-[1px] truncate">{c.role}</div>
         </div>
-        <StatusPill status={c.status as ApplicationStatus} />
+        <StatusPill status={c.status} />
       </div>
 
       {/* Meta row */}
@@ -58,9 +62,39 @@ function CompanyCard({ c, delay }: { c: AppliedCompany; delay: number }) {
   )
 }
 
-export function AppliedPanel() {
-  const sent    = SEED_APPLIED.filter((c) => c.status !== 'pending')
-  const pending = SEED_APPLIED.filter((c) => c.status === 'pending')
+export function AppliedPanel({ resumeId, drafts = [], pipeStep }: Props) {
+  const [apps, setApps] = useState<AppliedCompany[]>([])
+
+  useEffect(() => {
+    if (!resumeId) return
+    getApplications(resumeId)
+      .then((res) => {
+        const list: AppliedCompany[] = (res.applications ?? []).map((a) => ({
+          name: a.company || 'Unknown',
+          role: a.job_title || 'Role',
+          score: Math.round(a.match_score),
+          status: a.status,
+          time: a.sent_at ? timeAgo(a.sent_at) : (a.created_at ? timeAgo(a.created_at) : 'just now'),
+          color: '#1a2236',
+          textColor: '#3D81E3',
+          letter: (a.company || '?')[0].toUpperCase(),
+        }))
+        setApps(list)
+      })
+      .catch(() => {})
+  }, [resumeId, pipeStep])
+
+  const sent = apps.filter((c) => c.status !== 'pending')
+  const pending = drafts.filter((d) => d.status === 'pending').map((d) => ({
+    name: d.company || 'Unknown',
+    role: d.job_title || 'Role',
+    score: Math.round(d.match_score),
+    status: 'pending' as ApplicationStatus,
+    time: d.created_at ? timeAgo(d.created_at) : 'just now',
+    color: '#2a1e12',
+    textColor: '#f59e0b',
+    letter: (d.company || '?')[0].toUpperCase(),
+  }))
 
   return (
     <aside
@@ -89,20 +123,15 @@ export function AppliedPanel() {
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-3">
-
         {sent.length === 0 && pending.length === 0 && (
-          <EmptyState
-            icon="→"
-            message="No applications sent yet."
-          />
+          <EmptyState icon="→" message="No applications sent yet." />
         )}
-
 
         <AnimatePresence>
           {sent.length > 0 && (
             <>
               <p className="text-[9px] font-mono text-white/30 tracking-[0.1em] uppercase mb-2 mt-1">
-                Sent ({sent.length})
+                Approved ({sent.length})
               </p>
               {sent.map((c, i) => (
                 <CompanyCard key={`${c.name}-${i}`} c={c} delay={i * 0.04} />
@@ -112,8 +141,8 @@ export function AppliedPanel() {
 
           {pending.length > 0 && (
             <>
-              <p className="text-[9px] font-mono text-white/30 tracking-[0.1em] uppercase mb-2 mt-3">
-                Pending Approval
+              <p className="text-[9px] font-mono text-amber-400 tracking-[0.1em] uppercase mb-2 mt-3">
+                Pending Approval ({pending.length})
               </p>
               {pending.map((c, i) => (
                 <CompanyCard
@@ -124,7 +153,6 @@ export function AppliedPanel() {
               ))}
             </>
           )}
-        
         </AnimatePresence>
       </div>
     </aside>
